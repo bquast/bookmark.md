@@ -6,8 +6,9 @@
 //
 
 import UIKit
+import UniformTypeIdentifiers // Import for UTType
 
-class ViewController: UIViewController {
+class ViewController: UIViewController, UIDocumentPickerDelegate { // Conform to UIDocumentPickerDelegate
 
     private var textView: UITextView!
 
@@ -36,8 +37,109 @@ class ViewController: UIViewController {
 
     override func viewDidLoad() {
         super.viewDidLoad()
+        setupNavigationBar() // Add this call
         setupTextView()
-        loadAndRenderMarkdown()
+        // loadAndRenderMarkdown() // We'll call this after a file is picked
+        showInitialMessage() // Show a message prompting to load a file
+    }
+
+    private func setupNavigationBar() {
+        navigationItem.title = "Markdown Reader"
+        navigationItem.rightBarButtonItem = UIBarButtonItem(title: "Load Book", style: .plain, target: self, action: #selector(openDocumentPicker))
+    }
+
+    private func showInitialMessage() {
+        let attributedText = NSMutableAttributedString(string: "Tap 'Load Book' to select a Markdown (.md) file.",
+                                                     attributes: [.font: normalFont,
+                                                                  .foregroundColor: UIColor.gray])
+        let paragraphStyle = NSMutableParagraphStyle()
+        paragraphStyle.alignment = .center
+        attributedText.addAttribute(.paragraphStyle,
+                                    value: paragraphStyle,
+                                    range: NSRange(location: 0, length: attributedText.length))
+
+        textView.attributedText = attributedText
+        textView.textAlignment = .center // Ensure text view alignment is also center for this message
+    }
+
+    @objc private func openDocumentPicker() {
+        if #available(iOS 14.0, *) { // Guard the entire iOS 14+ specific document picker logic
+            // Define the types of documents we want to allow
+            var typesForPicker: [UTType] = []
+            
+            // Try to define Markdown type using its canonical identifier.
+            // Fallback to creating from extension if the identifier isn't recognized by the system.
+            if let markdownType = UTType("net.daringfireball.markdown") {
+                typesForPicker.append(markdownType)
+            } else if let markdownTypeByExt = UTType(filenameExtension: "md", conformingTo: UTType.text) {
+                typesForPicker.append(markdownTypeByExt)
+            }
+            
+            // Always include plainText for broader compatibility (e.g., .txt files that might contain markdown)
+            // UTType.plainText is appropriate here as it's a common base type for text files.
+            typesForPicker.append(UTType.plainText)
+            
+            // Use Set to ensure uniqueness before converting back to Array
+            let supportedTypes = Array(Set(typesForPicker))
+            
+            let documentPicker = UIDocumentPickerViewController(forOpeningContentTypes: supportedTypes, asCopy: true)
+            documentPicker.delegate = self
+            documentPicker.allowsMultipleSelection = false
+            present(documentPicker, animated: true, completion: nil)
+        } else {
+            // Fallback for iOS versions older than 14.0
+            // The modern UIDocumentPickerViewController initializer used above is not available.
+            // You would need to use UIDocumentPickerViewController(documentTypes:in:) and string-based UTIs.
+            print("File picker with modern UTTypes is not available on this iOS version. Feature requires iOS 14+.")
+            let alert = UIAlertController(title: "Feature Unavailable", message: "Loading books requires iOS 14.0 or newer.", preferredStyle: .alert)
+            alert.addAction(UIAlertAction(title: "OK", style: .default, handler: nil))
+            present(alert, animated: true, completion: nil)
+        }
+    }
+
+    // MARK: - UIDocumentPickerDelegate
+    func documentPicker(_ controller: UIDocumentPickerViewController, didPickDocumentsAt urls: [URL]) {
+        guard let selectedFileURL = urls.first else {
+            return
+        }
+
+        // Check if the file is accessible. For "asCopy: true", we get a temporary secure URL.
+        let shouldStopAccessing = selectedFileURL.startAccessingSecurityScopedResource()
+        defer {
+            if shouldStopAccessing {
+                selectedFileURL.stopAccessingSecurityScopedResource()
+            }
+        }
+
+        do {
+            let markdownText = try String(contentsOf: selectedFileURL, encoding: .utf8)
+            renderMarkdownText(markdownText)
+            textView.textAlignment = .left // Reset text alignment for book content
+        } catch {
+            print("Error reading file: \(error)")
+            // Show an error message to the user
+            let errorText = NSMutableAttributedString(string: "Failed to load or read the selected file.\nError: \(error.localizedDescription)",
+                                                     attributes: [.font: normalFont, .foregroundColor: UIColor.red])
+             let paragraphStyle = NSMutableParagraphStyle()
+             paragraphStyle.alignment = .center
+             errorText.addAttribute(.paragraphStyle,
+                                     value: paragraphStyle,
+                                     range: NSRange(location: 0, length: errorText.length))
+            textView.attributedText = errorText
+            textView.textAlignment = .center
+        }
+    }
+
+    func documentPickerWasCancelled(_ controller: UIDocumentPickerViewController) {
+        print("Document picker was cancelled.")
+    }
+
+    private func renderMarkdownText(_ markdownText: String) { // Renamed and takes String
+        // Sourced from: https://raw.githubusercontent.com/mlschmitt/classic-books-markdown/refs/heads/main/Friedrich%20Nietzsche/Thus%20Spoke%20Zarathustra.md
+        // The above comment is now less relevant here, as text comes from a file
+        // but kept for historical context if needed for the parser logic.
+        
+        textView.attributedText = parseMarkdownRevised(markdownText)
     }
 
     private func setupTextView() {
@@ -54,7 +156,7 @@ class ViewController: UIViewController {
         ])
     }
 
-    private func loadAndRenderMarkdown() {
+    private func loadAndRenderMarkdown() { // This function is now less used directly, but kept for potential direct string rendering
         // For now, using the example Markdown content.
         // Sourced from: https://raw.githubusercontent.com/mlschmitt/classic-books-markdown/refs/heads/main/Friedrich%20Nietzsche/Thus%20Spoke%20Zarathustra.md
         let markdownText = """
@@ -222,8 +324,8 @@ class ViewController: UIViewController {
             var inlineAttributes = baseAttributes
             let currentBaseFont = baseAttributes[.font] as? UIFont ?? self.normalFont
             var contentText = ""
-            var matchedFullRange = match.range // The full range of the markdown (e.g., including the ** **)
-
+            let matchedFullRange = match.range // Changed var to let
+            
             if match.range(at: 1).location != NSNotFound { // **bold**
                 let contentRangeInMatch = match.range(at: 1)
                 contentText = (text as NSString).substring(with: contentRangeInMatch)
