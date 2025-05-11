@@ -51,7 +51,7 @@ class ViewController: UIViewController, UIDocumentPickerDelegate { // Conform to
     private func showInitialMessage() {
         let attributedText = NSMutableAttributedString(string: "Tap 'Load Book' to select a Markdown (.md) file.",
                                                      attributes: [.font: normalFont,
-                                                                  .foregroundColor: UIColor.gray])
+                                                                  .foregroundColor: UIColor.secondaryLabel])
         let paragraphStyle = NSMutableParagraphStyle()
         paragraphStyle.alignment = .center
         attributedText.addAttribute(.paragraphStyle,
@@ -119,7 +119,7 @@ class ViewController: UIViewController, UIDocumentPickerDelegate { // Conform to
             print("Error reading file: \(error)")
             // Show an error message to the user
             let errorText = NSMutableAttributedString(string: "Failed to load or read the selected file.\nError: \(error.localizedDescription)",
-                                                     attributes: [.font: normalFont, .foregroundColor: UIColor.red])
+                                                     attributes: [.font: normalFont, .foregroundColor: UIColor.systemRed])
              let paragraphStyle = NSMutableParagraphStyle()
              paragraphStyle.alignment = .center
              errorText.addAttribute(.paragraphStyle,
@@ -285,7 +285,10 @@ class ViewController: UIViewController, UIDocumentPickerDelegate { // Conform to
     private func appendFormattedString(text: String, baseFont: UIFont, paragraphSpacing: CGFloat? = nil, to masterAttributedString: NSMutableAttributedString) {
         if text.isEmpty { return }
 
-        var attributes: [NSAttributedString.Key: Any] = [.font: baseFont]
+        var attributes: [NSAttributedString.Key: Any] = [
+            .font: baseFont,
+            .foregroundColor: UIColor.label
+        ]
         
         if let pSpacing = paragraphSpacing {
             let paragraphStyle = NSMutableParagraphStyle()
